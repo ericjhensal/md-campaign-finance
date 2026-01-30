@@ -1,0 +1,44 @@
+name: Analyze MD Campaign Finance Data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/analyze.yml'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install pandas numpy networkx matplotlib seaborn
+      
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data
+          cd data
+          gh release download MD_campaign_finance --pattern "*.csv" --skip-existing
+          ls -lh *.csv
+      
+      - name: Run analysis
+        run: python scripts/analyze_networks.py
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: campaign-finance-analysis
+          path: output/
+          retention-days: 90
