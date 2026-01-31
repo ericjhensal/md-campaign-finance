@@ -36,7 +36,7 @@ def load_committees():
         return pd.DataFrame()
     
     # Skip the header row that contains download timestamp
-    df = pd.read_csv(committee_files[0], skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip')
+    df = pd.read_csv(committee_files[0], skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip', engine='python')
     print(f"  Loaded {len(df)} committees")
     return df
 
@@ -55,7 +55,7 @@ def load_contributions():
         print(f"  Loading {f.name}...")
         try:
             # Skip header row with timestamp
-            df = pd.read_csv(f, skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip')
+            df = pd.read_csv(f, skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip', engine='python')
             dfs.append(df)
         except Exception as e:
             print(f"  Error loading {f.name}: {e}")
@@ -87,7 +87,7 @@ def load_expenditures():
     for f in expend_files:
         print(f"  Loading {f.name}...")
         try:
-            df = pd.read_csv(f, skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip')
+            df = pd.read_csv(f, skiprows=1, low_memory=False, encoding='latin-1', on_bad_lines='skip', engine='python')
             dfs.append(df)
         except Exception as e:
             print(f"  Error loading {f.name}: {e}")
