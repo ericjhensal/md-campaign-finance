@@ -20,17 +20,24 @@ from config import CRIS_API_URL, RAW_DIR
 
 DOWNLOADS = {
     'contributions': {
-        'cycle': {'transactionTypeCode': 'TCOC', 'filingYear': '', 'type': 'csv', 'fileName': 'contributions.csv'},
-        'year': {'transactionTypeCode': 'TCON', 'type': 'csv', 'fileName': 'contributions.csv'},
+        'cycle': {'transactionTypeCode': 'TCOC', 'filingYear': '', 'type': 'CSV', 'fileName': 'Contributions Download', 'openInNewTab': False},
+        'year': {'transactionTypeCode': 'TCON', 'type': 'CSV', 'fileName': 'Contributions Download', 'openInNewTab': False},
     },
     'expenditures': {
-        'cycle': {'transactionTypeCode': 'TEXC', 'filingYear': '', 'type': 'csv', 'fileName': 'expenditures.csv'},
-        'year': {'transactionTypeCode': 'TEXP', 'type': 'csv', 'fileName': 'expenditures.csv'},
+        'cycle': {'transactionTypeCode': 'TEXC', 'filingYear': '', 'type': 'CSV', 'fileName': 'Expenditures Download', 'openInNewTab': False},
+        'year': {'transactionTypeCode': 'TEXP', 'type': 'CSV', 'fileName': 'Expenditures Download', 'openInNewTab': False},
     },
     'committees': {
-        'cycle': {'transactionTypeCode': 'TCMC', 'filingYear': '', 'type': 'csv', 'fileName': 'committees.csv'},
-        'year': {'transactionTypeCode': 'TCOM', 'type': 'csv', 'fileName': 'committees.csv'},
+        'cycle': {'transactionTypeCode': 'TCMC', 'filingYear': '', 'type': 'CSV', 'fileName': 'Committees Download', 'openInNewTab': False},
+        'year': {'transactionTypeCode': 'TCOM', 'type': 'CSV', 'fileName': 'Committees Download', 'openInNewTab': False},
     },
+}
+
+# Local filenames for saving (API fileName is just a label)
+LOCAL_FILENAMES = {
+    'contributions': 'contributions.csv',
+    'expenditures': 'expenditures.csv',
+    'committees': 'committees.csv',
 }
 
 
@@ -54,7 +61,7 @@ def download_file(file_type, year=None, progress_callback=None):
     if year:
         params['filingYear'] = str(year)
 
-    out_path = os.path.join(RAW_DIR, params['fileName'])
+    out_path = os.path.join(RAW_DIR, LOCAL_FILENAMES[file_type])
     label = f"{file_type} ({'cycle' if not year else year})"
 
     log(f"Downloading {label}...")
