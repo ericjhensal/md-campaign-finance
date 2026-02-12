@@ -74,10 +74,9 @@ def bulk_insert(conn, table, records, columns):
 
 def build_search_index(conn):
     """Build FTS5 search index from loaded data."""
-    try:
-        conn.execute("DELETE FROM search_index")
-    except Exception:
-        pass
+    # Drop and recreate to ensure correct column schema
+    conn.execute("DROP TABLE IF EXISTS search_index")
+    conn.execute("CREATE VIRTUAL TABLE search_index USING fts5(name, type, entity_id, extra)")
 
     # Index committees
     conn.execute("""
@@ -168,16 +167,19 @@ def run_full_load(progress_callback=None):
     log("Building search index...")
     build_search_index(conn)
 
-    # Update metadata
+    # Update metadata and capture counts before closing
     conn.execute("DELETE FROM data_meta")
     conn.execute("INSERT INTO data_meta (key, value) VALUES (?, ?)",
                 ('last_load', datetime.now().isoformat()))
+    committees_count = conn.execute("SELECT COUNT(*) FROM committees").fetchone()[0]
+    contributions_count = conn.execute("SELECT COUNT(*) FROM contributions").fetchone()[0]
+    expenditures_count = conn.execute("SELECT COUNT(*) FROM expenditures").fetchone()[0]
     conn.execute("INSERT INTO data_meta (key, value) VALUES (?, ?)",
-                ('committees_count', str(conn.execute("SELECT COUNT(*) FROM committees").fetchone()[0])))
+                ('committees_count', str(committees_count)))
     conn.execute("INSERT INTO data_meta (key, value) VALUES (?, ?)",
-                ('contributions_count', str(conn.execute("SELECT COUNT(*) FROM contributions").fetchone()[0])))
+                ('contributions_count', str(contributions_count)))
     conn.execute("INSERT INTO data_meta (key, value) VALUES (?, ?)",
-                ('expenditures_count', str(conn.execute("SELECT COUNT(*) FROM expenditures").fetchone()[0])))
+                ('expenditures_count', str(expenditures_count)))
     conn.commit()
     conn.close()
 
@@ -192,7 +194,7 @@ def run_full_load(progress_callback=None):
 
     log("Pipeline complete!")
     return {
-        'committees': conn.execute("SELECT COUNT(*) FROM committees").fetchone()[0] if False else 0,
+        'committees': committees_count,
         'donor_links': donor_count,
         'vendor_links': vendor_count,
     }
