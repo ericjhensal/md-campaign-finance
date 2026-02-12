@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Data Management â MD Campaign Finance{% endblock %}
+{% block content %}
+<h1>Data Management</h1>
+
+<!-- CRIS Download Section -->
+<div class="panel" style="border: 2px solid #2563eb; background: #eff6ff;">
+    <h2>Download from Maryland CRIS</h2>
+    <p>Download fresh campaign finance data directly from the Maryland State Board of Elections.</p>
+
+    <div class="form-row">
+        <label>Date Range:
+            <select id="cris-range">
+                <option value="cycle">Current Cycle (2023-2026)</option>
+                <option value="2026">2026 Only</option>
+                <option value="2025">2025 Only</option>
+                <option value="2024">2024 Only</option>
+                <option value="2023">2023 Only</option>
+            </select>
+        </label>
+    </div>
+    <div class="form-row" style="margin-top: 0.5rem;">
+        <label><input type="checkbox" id="dl-committees" checked> Committees</label>
+        <label><input type="checkbox" id="dl-contributions" checked> Contributions & Loans</label>
+        <label><input type="checkbox" id="dl-expenditures" checked> Expenditures</label>
+    </div>
+    <div class="form-row" style="margin-top: 0.5rem;">
+        <label><input type="checkbox" id="dl-run-pipeline" checked> Auto-run pipeline after download</label>
+    </div>
+    <button id="cris-download-btn" onclick="downloadFromCRIS()" style="margin-top: 0.5rem;">
+        Download from CRIS
+    </button>
+    <div id="download-progress" style="display:none; margin-top:1rem;">
+        <div class="progress-log" id="download-log"></div>
+    </div>
+</div>
+
+<!-- Upload Section -->
+<div class="panel" style="margin-top: 1rem;">
+    <h2>Upload CSV Files</h2>
+    <p>Or upload CRIS CSV exports manually. Files are auto-renamed (e.g., long CRIS filenames become committees.csv, contributions.csv, expenditures.csv).</p>
+    <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" name="file1" accept=".csv">
+        <input type="file" name="file2" accept=".csv">
+        <input type="file" name="file3" accept=".csv">
+        <button type="submit">Upload</button>
+    </form>
+    <div id="upload-result"></div>
+</div>
+
+<!-- Current Files -->
+<div class="panel" style="margin-top: 1rem;">
+    <h2>Data Files</h2>
+    {% if files %}
+    <table class="data-table">
+        <thead><tr><th>File</th><th>Size</th></tr></thead>
+        <tbody>
+        {% for f in files %}
+        <tr><td>{{ f.name }}</td><td>{{ f.size }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No data files yet. Download from CRIS or upload CSV files above.</p>
+    {% endif %}
+</div>
+
+<!-- Pipeline Section -->
+<div class="panel" style="margin-top: 1rem;">
+    <h2>Run Data Pipeline</h2>
+    <p>Process uploaded CSV files: clean, normalize names, load into database, compute network links.</p>
+    <button id="pipeline-btn" onclick="runPipeline()" {% if pipeline_running %}disabled{% endif %}>
+        Run Pipeline
+    </button>
+    <div id="pipeline-progress" style="display:none; margin-top:1rem;">
+        <div class="progress-log" id="pipeline-log"></div>
+    </div>
+</div>
+
+<script>
+function downloadFromCRIS() {
+    const range = document.getElementById('cris-range').value;
+    const types = [];
+    if (document.getElementById('dl-committees').checked) types.push('committees');
+    if (document.getElementById('dl-contributions').checked) types.push('contributions');
+    if (document.getElementById('dl-expenditures').checked) types.push('expenditures');
+    const runPipeline = document.getElementById('dl-run-pipeline').checked;
+
+    if (types.length === 0) { alert('Select at least one file type'); return; }
+
+    document.getElementById('cris-download-btn').disabled = true;
+    document.getElementById('download-progress').style.display = 'block';
+    document.getElementById('download-log').innerHTML = 'Starting download...';
+
+    fetch('/data/download-cris', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            year: range === 'cycle' ? null : range,
+            types: types,
+            run_pipeline: runPipeline
+        })
+    }).then(r => r.json()).then(() => {
+        pollStatus();
+    });
+}
+
+function runPipeline() {
+    document.getElementById('pipeline-btn').disabled = true;
+    document.getElementById('pipeline-progress').style.display = 'block';
+    document.getElementById('pipeline-log').innerHTML = 'Starting pipeline...';
+
+    fetch('/data/run-pipeline', {method: 'POST'}).then(r => r.json()).then(() => {
+        pollStatus();
+    });
+}
+
+function pollStatus() {
+    fetch('/data/status').then(r => r.json()).then(data => {
+        const dlLog = document.getElementById('download-log');
+        const plLog = document.getElementById('pipeline-log');
+
+        if (data.download.messages.length > 0) {
+            dlLog.innerHTML = data.download.messages.join('<br>');
+            dlLog.scrollTop = dlLog.scrollHeight;
+        }
+        if (data.pipeline.messages.length > 0) {
+            document.getElementById('pipeline-progress').style.display = 'block';
+            plLog.innerHTML = data.pipeline.messages.join('<br>');
+            plLog.scrollTop = plLog.scrollHeight;
+        }
+
+        if (data.download.running || data.pipeline.running) {
+            setTimeout(pollStatus, 2000);
+        } else {
+            document.getElementById('cris-download-btn').disabled = false;
+            document.getElementById('pipeline-btn').disabled = false;
+            if (!data.download.error && !data.pipeline.error) {
+                setTimeout(() => location.reload(), 1000);
+            }
+        }
+    });
+}
+
+// Upload form
+document.getElementById('upload-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    fetch('/data/upload', {method: 'POST', body: formData})
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                document.getElementById('upload-result').innerHTML =
+                    '<p style="color:green">Uploaded: ' + data.files.join(', ') + '</p>';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                document.getElementById('upload-result').innerHTML =
+                    '<p style="color:red">' + data.message + '</p>';
+            }
+        });
+});
+</script>
+{% endblock %}
